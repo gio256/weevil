@@ -2,10 +2,33 @@
 mod loom {
     use std::rc::Rc;
 
-    use loom::sync::atomic::AtomicUsize;
+    use loom::sync::atomic::{AtomicBool, AtomicUsize};
     use loom::sync::atomic::Ordering::{Acquire, Release, Relaxed};
     use loom::sync::{Arc, Mutex};
     use loom::thread;
+
+    #[test]
+    fn test_publication() {
+        loom::model(|| {
+            let ready = Arc::new(AtomicBool::new(false));
+            let data = Arc::new(AtomicUsize::new(0));
+            let t0 = {
+                let ready = ready.clone();
+                let data = data.clone();
+                thread::spawn(move || {
+                    data.store(1, Release);
+                    ready.store(true, Release);
+                })
+            };
+            let t1 = thread::spawn(move || {
+                if ready.load(Acquire) {
+                    assert!(data.load(Acquire) == 1);
+                }
+            });
+            t0.join().unwrap();
+            t1.join().unwrap();
+        })
+    }
 
     #[test]
     #[should_panic]
