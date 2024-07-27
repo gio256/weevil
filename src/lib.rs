@@ -10,18 +10,18 @@ mod loom {
     #[test]
     fn test_publication() {
         loom::model(|| {
-            let ready = Arc::new(AtomicBool::new(false));
+            let flag = Arc::new(AtomicBool::new(false));
             let data = Arc::new(AtomicUsize::new(0));
             let t0 = {
-                let ready = ready.clone();
+                let flag = flag.clone();
                 let data = data.clone();
                 thread::spawn(move || {
                     data.store(1, Release);
-                    ready.store(true, Release);
+                    flag.store(true, Release);
                 })
             };
             let t1 = thread::spawn(move || {
-                if ready.load(Acquire) {
+                if flag.load(Acquire) {
                     assert!(data.load(Acquire) == 1);
                 }
             });
@@ -55,6 +55,36 @@ mod loom {
             t1.join().unwrap();
         });
     }
+
+    #[test]
+    fn test_release_sequence() {
+        loom::model(|| {
+            let flag = Arc::new(AtomicBool::new(false));
+            let data = Arc::new(AtomicUsize::new(0));
+            let t0 = {
+                let flag = flag.clone();
+                let data = data.clone();
+                thread::spawn(move || {
+                    data.store(1, Relaxed);             // A
+                    flag.store(true, Release);          // B
+                    // Now D reads from C without being synchronized with B.
+                    // But isn't this still a release sequence headed by B?
+                    // It seems like maybe loom only maintains the release
+                    // sequence for RMW operations.
+                    // flag.store(true, Relaxed);          // C
+                    flag.fetch_or(true, Relaxed);
+                })
+            };
+            let t1 = thread::spawn(move || {
+                if flag.load(Acquire) {                 // D
+                    assert!(data.load(Relaxed) == 1);   // E
+                }
+            });
+            t0.join().unwrap();
+            t1.join().unwrap();
+        });
+    }
+
 
     #[test]
     #[should_panic]
