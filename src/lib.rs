@@ -56,7 +56,10 @@ mod loom {
         });
     }
 
+    /// This test reflects the weakening of release sequences in C++20:
+    /// <http://www.open-std.org/jtc1/sc22/wg21/docs/papers/2018/p0982r1.html>
     #[test]
+    #[should_panic]
     fn test_release_sequence() {
         loom::model(|| {
             let flag = Arc::new(AtomicBool::new(false));
@@ -67,12 +70,9 @@ mod loom {
                 thread::spawn(move || {
                     data.store(1, Relaxed);             // A
                     flag.store(true, Release);          // B
-                    // Now D reads from C without being synchronized with B.
-                    // But isn't this still a release sequence headed by B?
-                    // It seems like maybe loom only maintains the release
-                    // sequence for RMW operations.
-                    // flag.store(true, Relaxed);          // C
-                    flag.fetch_or(true, Relaxed);
+                    // The store C breaks the release sequence headed by B,
+                    // so D reads from C without being synchronized with B.
+                    flag.store(true, Relaxed);          // C
                 })
             };
             let t1 = thread::spawn(move || {
