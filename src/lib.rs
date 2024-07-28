@@ -16,13 +16,13 @@ mod loom {
                 let flag = flag.clone();
                 let data = data.clone();
                 thread::spawn(move || {
-                    data.store(1, Release);
+                    data.store(1, Relaxed);
                     flag.store(true, Release);
                 })
             };
             let t1 = thread::spawn(move || {
                 if flag.load(Acquire) {
-                    assert!(data.load(Acquire) == 1);
+                    assert!(data.load(Relaxed) == 1);
                 }
             });
             t0.join().unwrap();
