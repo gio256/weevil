@@ -124,9 +124,42 @@ mod loom {
                 y.store(1, Relaxed);
                 x.load(Relaxed)
             });
-            let res0 = j1.join().unwrap();
-            let res1 = j2.join().unwrap();
-            assert!(!(res0 == 0 && res1 == 0));
+            let res1 = j1.join().unwrap();
+            let res2 = j2.join().unwrap();
+            assert!(!(res1 == 0 && res2 == 0));
+        })
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_message_passing() {
+        loom::model(|| {
+            let x = Arc::new(AtomicUsize::new(0));
+            let y = Arc::new(AtomicUsize::new(0));
+            let j1 = {
+                let (x, y) = (x.clone(), y.clone());
+                thread::spawn(move || {
+                    x.store(1, Relaxed);
+                    y.store(1, Relaxed);
+                })
+            };
+            let j2 = {
+                let (x, y) = (x.clone(), y.clone());
+                thread::spawn(move || {
+                    let y_read = y.load(Relaxed);
+                    let x_read = x.load(Relaxed);
+                    (x_read, y_read)
+                })
+            };
+            let j3 = thread::spawn(move || {
+                let x_read = x.load(Relaxed);
+                let y_read = y.load(Relaxed);
+                (x_read, y_read)
+            });
+            j1.join().unwrap();
+            let res2 = j2.join().unwrap();
+            let res3 = j3.join().unwrap();
+            assert!(!(res2 == (0, 1) && res3 == (1, 0)));
         })
     }
 
@@ -151,9 +184,9 @@ mod loom {
                 y.store(1, Relaxed);
                 res
             });
-            let res0 = j1.join().unwrap();
-            let res1 = j2.join().unwrap();
-            assert!(!(res0 == 1 && res1 == 1));
+            let res1 = j1.join().unwrap();
+            let res2 = j2.join().unwrap();
+            assert!(!(res1 == 1 && res2 == 1));
         });
     }
 }
