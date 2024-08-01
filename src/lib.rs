@@ -34,22 +34,22 @@ mod loom {
     #[should_panic]
     fn test_deadlock() {
         loom::model(|| {
-            let a = Rc::new(Mutex::new(1));
-            let b = Rc::new(Mutex::new(2));
+            let x = Rc::new(Mutex::new(1));
+            let y = Rc::new(Mutex::new(2));
 
             let j1 = {
-                let a = a.clone();
-                let b = b.clone();
+                let x = x.clone();
+                let y = y.clone();
                 thread::spawn(move || {
-                    let a = a.lock().unwrap();
-                    let b = b.lock().unwrap();
-                    assert_eq!(*a + *b, 3);
+                    let x = x.lock().unwrap();
+                    let y = y.lock().unwrap();
+                    assert_eq!(*x + *y, 3);
                 })
             };
             let j2 = thread::spawn(move || {
-                let b = b.lock().unwrap();
-                let a = a.lock().unwrap();
-                assert_eq!(*a + *b, 3);
+                let y = y.lock().unwrap();
+                let x = x.lock().unwrap();
+                assert_eq!(*x + *y, 3);
             });
             j1.join().unwrap();
             j2.join().unwrap();
@@ -108,24 +108,47 @@ mod loom {
     }
 
     #[test]
+    #[should_panic]
+    fn test_store_buffering() {
+        loom::model(|| {
+            let x = Arc::new(AtomicUsize::new(0));
+            let y = Arc::new(AtomicUsize::new(0));
+            let j1 = {
+                let (x, y) = (x.clone(), y.clone());
+                thread::spawn(move || {
+                    x.store(1, Relaxed);
+                    y.load(Relaxed)
+                })
+            };
+            let j2 = thread::spawn(move || {
+                y.store(1, Relaxed);
+                x.load(Relaxed)
+            });
+            let res0 = j1.join().unwrap();
+            let res1 = j2.join().unwrap();
+            assert!(!(res0 == 0 && res1 == 0));
+        })
+    }
+
+    #[test]
     #[ignore]
     #[should_panic]
     fn test_relaxed() {
         loom::model(|| {
-            let a = Arc::new(AtomicUsize::new(0));
-            let b = Arc::new(AtomicUsize::new(0));
+            let x = Arc::new(AtomicUsize::new(0));
+            let y = Arc::new(AtomicUsize::new(0));
             let j1 = {
-                let a = a.clone();
-                let b = b.clone();
+                let x = x.clone();
+                let y = y.clone();
                 thread::spawn(move || {
-                    let res = b.load(Relaxed);
-                    a.store(1, Relaxed);
+                    let res = y.load(Relaxed);
+                    x.store(1, Relaxed);
                     res
                 })
             };
             let j2 = thread::spawn(move || {
-                let res = a.load(Relaxed);
-                b.store(1, Relaxed);
+                let res = x.load(Relaxed);
+                y.store(1, Relaxed);
                 res
             });
             let res0 = j1.join().unwrap();
