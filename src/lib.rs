@@ -12,7 +12,7 @@ mod loom {
         loom::model(|| {
             let flag = Arc::new(AtomicBool::new(false));
             let data = Arc::new(AtomicUsize::new(0));
-            let t0 = {
+            let j1 = {
                 let flag = flag.clone();
                 let data = data.clone();
                 thread::spawn(move || {
@@ -20,13 +20,13 @@ mod loom {
                     flag.store(true, Release);
                 })
             };
-            let t1 = thread::spawn(move || {
+            let j2 = thread::spawn(move || {
                 if flag.load(Acquire) {
                     assert!(data.load(Relaxed) == 1);
                 }
             });
-            t0.join().unwrap();
-            t1.join().unwrap();
+            j1.join().unwrap();
+            j2.join().unwrap();
         })
     }
 
@@ -37,7 +37,7 @@ mod loom {
             let a = Rc::new(Mutex::new(1));
             let b = Rc::new(Mutex::new(2));
 
-            let t0 = {
+            let j1 = {
                 let a = a.clone();
                 let b = b.clone();
                 thread::spawn(move || {
@@ -46,13 +46,13 @@ mod loom {
                     assert_eq!(*a + *b, 3);
                 })
             };
-            let t1 = thread::spawn(move || {
+            let j2 = thread::spawn(move || {
                 let b = b.lock().unwrap();
                 let a = a.lock().unwrap();
                 assert_eq!(*a + *b, 3);
             });
-            t0.join().unwrap();
-            t1.join().unwrap();
+            j1.join().unwrap();
+            j2.join().unwrap();
         });
     }
 
@@ -64,7 +64,7 @@ mod loom {
         loom::model(|| {
             let flag = Arc::new(AtomicBool::new(false));
             let data = Arc::new(AtomicUsize::new(0));
-            let t0 = {
+            let j1 = {
                 let flag = flag.clone();
                 let data = data.clone();
                 thread::spawn(move || {
@@ -75,13 +75,13 @@ mod loom {
                     flag.store(true, Relaxed);          // C
                 })
             };
-            let t1 = thread::spawn(move || {
+            let j2 = thread::spawn(move || {
                 if flag.load(Acquire) {                 // D
                     assert!(data.load(Relaxed) == 1);   // E
                 }
             });
-            t0.join().unwrap();
-            t1.join().unwrap();
+            j1.join().unwrap();
+            j2.join().unwrap();
         });
     }
 
@@ -114,7 +114,7 @@ mod loom {
         loom::model(|| {
             let a = Arc::new(AtomicUsize::new(0));
             let b = Arc::new(AtomicUsize::new(0));
-            let t0 = {
+            let j1 = {
                 let a = a.clone();
                 let b = b.clone();
                 thread::spawn(move || {
@@ -123,13 +123,13 @@ mod loom {
                     res
                 })
             };
-            let t1 = thread::spawn(move || {
+            let j2 = thread::spawn(move || {
                 let res = a.load(Relaxed);
                 b.store(1, Relaxed);
                 res
             });
-            let res0 = t0.join().unwrap();
-            let res1 = t1.join().unwrap();
+            let res0 = j1.join().unwrap();
+            let res1 = j2.join().unwrap();
             assert!(!(res0 == 1 && res1 == 1));
         });
     }
