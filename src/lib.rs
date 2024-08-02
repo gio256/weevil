@@ -203,6 +203,38 @@ mod loom {
     }
 
     #[test]
+    fn test_ok_iriw() {
+        loom::model(|| {
+            let x = Arc::new(AtomicUsize::new(0));
+            let y = Arc::new(AtomicUsize::new(0));
+            let j1 = {
+                let (x, y) = (x.clone(), y.clone());
+                thread::spawn(move || {
+                    x.store(1, Release);
+                    y.store(1, Release);
+                })
+            };
+            let j2 = {
+                let (x, y) = (x.clone(), y.clone());
+                thread::spawn(move || {
+                    let x_read = x.load(Acquire);
+                    let y_read = y.load(Acquire);
+                    (x_read, y_read)
+                })
+            };
+            let j3 = thread::spawn(move || {
+                let y_read = y.load(Acquire);
+                let x_read = x.load(Acquire);
+                (x_read, y_read)
+            });
+            j1.join().unwrap();
+            let res2 = j2.join().unwrap();
+            let res3 = j3.join().unwrap();
+            assert!(!(res2 == (1, 0) && res3 == (0, 1)));
+        });
+    }
+
+    #[test]
     #[ignore]
     #[should_panic]
     fn test_relaxed() {
