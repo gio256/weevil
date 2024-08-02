@@ -159,8 +159,47 @@ mod loom {
             j1.join().unwrap();
             let res2 = j2.join().unwrap();
             let res3 = j3.join().unwrap();
-            assert!(!(res2 == (0, 1) && res3 == (1, 0)));
+            assert!(!(res2 == (1, 0) && res3 == (0, 1)));
         })
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_iriw() {
+        loom::model(|| {
+            let x = Arc::new(AtomicUsize::new(0));
+            let y = Arc::new(AtomicUsize::new(0));
+            let j1 = {
+                let x = x.clone();
+                thread::spawn(move || {
+                    x.store(1, Release);
+                })
+            };
+            let j2 = {
+                let y = y.clone();
+                thread::spawn(move || {
+                    y.store(1, Release);
+                })
+            };
+            let j3 = {
+                let (x, y) = (x.clone(), y.clone());
+                thread::spawn(move || {
+                    let x_read = x.load(Acquire);
+                    let y_read = y.load(Acquire);
+                    (x_read, y_read)
+                })
+            };
+            let j4 = thread::spawn(move || {
+                let y_read = y.load(Acquire);
+                let x_read = x.load(Acquire);
+                (x_read, y_read)
+            });
+            j1.join().unwrap();
+            j2.join().unwrap();
+            let res3 = j3.join().unwrap();
+            let res4 = j4.join().unwrap();
+            assert!(!(res3 == (1, 0) && res4 == (0, 1)));
+        });
     }
 
     #[test]
