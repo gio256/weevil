@@ -163,6 +163,7 @@ mod loom {
         })
     }
 
+    /// Independent reads of independent writes.
     #[test]
     #[should_panic]
     fn test_iriw() {
@@ -231,6 +232,37 @@ mod loom {
             let res2 = j2.join().unwrap();
             let res3 = j3.join().unwrap();
             assert!(!(res2 == (1, 0) && res3 == (0, 1)));
+        });
+    }
+
+    #[test]
+    fn test_write_read_causality() {
+        loom::model(|| {
+            let x = Arc::new(AtomicUsize::new(0));
+            let y = Arc::new(AtomicUsize::new(0));
+            let j1 = {
+                let x = x.clone();
+                thread::spawn(move || {
+                    x.store(1, Relaxed);
+                })
+            };
+            let j2 = {
+                let (x, y) = (x.clone(), y.clone());
+                thread::spawn(move || {
+                    let res = x.load(Relaxed);
+                    y.store(1, Relaxed);
+                    res
+                })
+            };
+            let j3 = thread::spawn(move || {
+                let y_load = y.load(Relaxed);
+                let x_load = x.load(Relaxed);
+                (x_load, y_load)
+            });
+            j1.join().unwrap();
+            let x2 = j2.join().unwrap();
+            let (x3, y3) = j3.join().unwrap();
+            assert!(!(x2 == 1 && y3 == 1 && x3 == 0));
         });
     }
 
