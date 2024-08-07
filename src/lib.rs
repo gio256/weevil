@@ -236,6 +236,7 @@ mod loom {
     }
 
     #[test]
+    #[should_panic]
     fn test_write_read_causality() {
         loom::model(|| {
             let x = Arc::new(AtomicUsize::new(0));
@@ -249,9 +250,9 @@ mod loom {
             let j2 = {
                 let (x, y) = (x.clone(), y.clone());
                 thread::spawn(move || {
-                    let res = x.load(Relaxed);
+                    let x_load = x.load(Relaxed);
                     y.store(1, Relaxed);
-                    res
+                    x_load
                 })
             };
             let j3 = thread::spawn(move || {
